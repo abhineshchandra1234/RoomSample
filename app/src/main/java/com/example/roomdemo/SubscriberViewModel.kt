@@ -1,5 +1,6 @@
 package com.example.roomdemo
 
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -20,6 +21,11 @@ class SubscriberViewModel(private val repository: SubscriberRepository): ViewMod
 
     val saveOrUpdateButtonText = MutableLiveData<String>()
     val clearAllOrDeleteButtonText = MutableLiveData<String>()
+
+    private val statusMessage = MutableLiveData<Event<String>>()
+
+    val message: LiveData<Event<String>>
+    get() = statusMessage
 
     init {
         saveOrUpdateButtonText.value = "Save"
@@ -49,40 +55,65 @@ class SubscriberViewModel(private val repository: SubscriberRepository): ViewMod
         }
     }
 
-    fun insert(subscriber: Subscriber) =
+    private fun insert(subscriber: Subscriber) =
         viewModelScope.launch(Dispatchers.IO) {
-            repository.insert(subscriber)
-        }
-
-    fun update(subscriber: Subscriber) =
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.update(subscriber)
+            val newRowId = repository.insert(subscriber)
             withContext(Dispatchers.Main) {
-                inputName.value = ""
-                inputEmail.value = ""
-                isUpdateOrDelete = false
-                subscriberToUpdateOrDelete = subscriber
-                saveOrUpdateButtonText.value = "Save"
-                clearAllOrDeleteButtonText.value = "Clear All"
+                if(newRowId>-1) {
+                    statusMessage.value = Event("Subscriber Inserted Successfully! $newRowId")
+                } else {
+                    statusMessage.value = Event("Error Occurred!")
+                }
             }
         }
 
-    fun delete(subscriber: Subscriber) =
+    private fun update(subscriber: Subscriber) =
         viewModelScope.launch(Dispatchers.IO) {
-            repository.delete(subscriber)
+            val numberOfRows = repository.update(subscriber)
             withContext(Dispatchers.Main) {
-                inputName.value = ""
-                inputEmail.value = ""
-                isUpdateOrDelete = false
-                subscriberToUpdateOrDelete = subscriber
-                saveOrUpdateButtonText.value = "Save"
-                clearAllOrDeleteButtonText.value = "Clear All"
+                if(numberOfRows>0) {
+                    inputName.value = ""
+                    inputEmail.value = ""
+                    isUpdateOrDelete = false
+                    subscriberToUpdateOrDelete = subscriber
+                    saveOrUpdateButtonText.value = "Save"
+                    clearAllOrDeleteButtonText.value = "Clear All"
+                    statusMessage.value = Event("$numberOfRows Rows Updated Successfully")
+                } else {
+                    statusMessage.value = Event("Error Occurred!")
+                }
             }
         }
 
-    fun clearAll() =
+    private fun delete(subscriber: Subscriber) =
         viewModelScope.launch(Dispatchers.IO) {
-            repository.deleteAll()
+            val numberOfRowsDeleted = repository.delete(subscriber)
+            withContext(Dispatchers.Main) {
+                if(numberOfRowsDeleted>0) {
+                    inputName.value = ""
+                    inputEmail.value = ""
+                    isUpdateOrDelete = false
+                    subscriberToUpdateOrDelete = subscriber
+                    saveOrUpdateButtonText.value = "Save"
+                    clearAllOrDeleteButtonText.value = "Clear All"
+                    statusMessage.value = Event("$numberOfRowsDeleted Rows Deleted Successfully!")
+                }
+                else {
+                    statusMessage.value = Event("Error Occurred!")
+                }
+            }
+        }
+
+    private fun clearAll() =
+        viewModelScope.launch(Dispatchers.IO) {
+            val numberOfRowsDeleted = repository.deleteAll()
+            withContext(Dispatchers.Main) {
+                if(numberOfRowsDeleted>0) {
+                    statusMessage.value = Event("$numberOfRowsDeleted Rows Deleted Successfully!")
+                } else {
+                    statusMessage.value = Event("Error Occurred!")
+                }
+            }
         }
 
     fun initUpdateAndDelete(subscriber: Subscriber) {
